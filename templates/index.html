@@ -1,0 +1,1360 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Onyx — Assistant Intelligent</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #000000;
+            color: #f5f5f7;
+            height: 100vh;
+            overflow: hidden;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+        /* --- Styles du Système Vocal Local --- */
+        .voice-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            user-select: none;
+        }
+        .voice-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #30d158;
+            box-shadow: 0 0 8px rgba(48, 209, 88, 0.6);
+        }
+        .voice-pill.listening .voice-dot { background: #30d158; animation: pulseGreen 2s infinite; }
+        .voice-pill.wake_detected .voice-dot { background: #ff9500; animation: pulseFast 0.4s infinite; }
+        .voice-pill.recording .voice-dot { background: #ff3b30; animation: pulseRed 1s infinite; }
+        .voice-pill.transcribing .voice-dot { background: #ffd60a; animation: pulseYellow 1s infinite; }
+        .voice-pill.thinking .voice-dot { background: #007aff; animation: pulseBlue 1.2s infinite; }
+        .voice-pill.speaking .voice-dot { background: #bf5af2; animation: pulsePurple 1s infinite; }
+        .voice-pill.paused .voice-dot, .voice-pill.idle .voice-dot { background: #8e8e93; animation: none; }
+
+        @keyframes pulseGreen { 0% { transform: scale(0.9); opacity: 0.7; } 50% { transform: scale(1.25); opacity: 1; box-shadow: 0 0 10px #30d158; } 100% { transform: scale(0.9); opacity: 0.7; } }
+        @keyframes pulseRed { 0% { transform: scale(0.9); opacity: 0.8; } 50% { transform: scale(1.35); opacity: 1; box-shadow: 0 0 12px #ff3b30; } 100% { transform: scale(0.9); opacity: 0.8; } }
+        @keyframes pulseYellow { 0% { transform: scale(0.9); } 50% { transform: scale(1.2); box-shadow: 0 0 10px #ffd60a; } 100% { transform: scale(0.9); } }
+        @keyframes pulseBlue { 0% { transform: scale(0.9); opacity: 0.8; } 50% { transform: scale(1.25); opacity: 1; box-shadow: 0 0 10px #007aff; } 100% { transform: scale(0.9); opacity: 0.8; } }
+        @keyframes pulsePurple { 0% { transform: scale(0.9); opacity: 0.8; } 50% { transform: scale(1.3); opacity: 1; box-shadow: 0 0 12px #bf5af2; } 100% { transform: scale(0.9); opacity: 0.8; } }
+        @keyframes pulseFast { 0% { transform: scale(0.8); } 50% { transform: scale(1.4); box-shadow: 0 0 12px #ff9500; } 100% { transform: scale(0.8); } }
+
+        .voice-icon-btn {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2px;
+            border-radius: 4px;
+            transition: 0.2s;
+        }
+        .voice-icon-btn:hover { color: var(--text-primary); }
+
+        /* --- Linear / Vercel Design System --- */
+        :root {
+            --accent: #007aff;
+            --accent-hover: #0055b3;
+            --accent-subtle: rgba(0,122,255,0.12);
+            --glass: rgba(255,255,255,0.06);
+            --glass-hover: rgba(255,255,255,0.1);
+            --glass-border: rgba(255,255,255,0.08);
+            --glass-border-hover: rgba(255,255,255,0.15);
+            --text-primary: #f5f5f7;
+            --text-secondary: #86868b;
+            --text-tertiary: #636366;
+            --bg-primary: #000000;
+            --bg-secondary: #0d0d0f;
+            --bg-tertiary: #141416;
+            --bg-chat: #08080a;
+            --input-bg: rgba(255,255,255,0.05);
+            --success: #30d158;
+            --warning: #ff9f0a;
+            --error: #ff3b30;
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 20px;
+            --radius-full: 9999px;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+            --shadow-lg: 0 12px 40px rgba(0,0,0,0.6);
+            --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-medium: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-slow: 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .light-mode {
+            --accent: #007aff;
+            --accent-hover: #0055b3;
+            --accent-subtle: rgba(0,122,255,0.08);
+            --glass: rgba(0,0,0,0.03);
+            --glass-hover: rgba(0,0,0,0.06);
+            --glass-border: rgba(0,0,0,0.06);
+            --glass-border-hover: rgba(0,0,0,0.12);
+            --text-primary: #1c1c1e;
+            --text-secondary: #6e6e73;
+            --text-tertiary: #aeaeb2;
+            --bg-primary: #f5f5f7;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f2f2f7;
+            --bg-chat: #ffffff;
+            --input-bg: rgba(0,0,0,0.03);
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+            --shadow-lg: 0 12px 40px rgba(0,0,0,0.12);
+        }
+        #app { display: flex; height: 100vh; width: 100vw; background: var(--bg-primary); overflow: hidden; }
+        #sidebar {
+            position: fixed; top: 0; left: 0; width: 280px; height: 100%;
+            background: var(--bg-secondary); border-right: 1px solid var(--glass-border);
+            display: flex; flex-direction: column;
+            padding: calc(20px + var(--safe-top)) 16px calc(20px + var(--safe-bottom)) 16px;
+            overflow-y: auto; z-index: 100;
+            transform: translateX(-100%); transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+            box-shadow: 2px 0 20px rgba(0,0,0,0.3);
+        }
+        #sidebar.open { transform: translateX(0); }
+        #sidebar-backdrop {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 99;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+        }
+        #sidebar-backdrop.show { opacity: 1; pointer-events: auto; }
+        #sidebar-search:focus { border-color: var(--accent); background: var(--bg-tertiary); }
+        #sidebar-search::placeholder { color: var(--text-tertiary); }
+        #sidebar-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+        #sidebar-header h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; background: linear-gradient(135deg, #007aff, #5ac8fa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        #new-chat-btn { background: var(--accent); border: none; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; color: #fff; cursor: pointer; transition: all var(--transition-fast); }
+        #new-chat-btn:hover { background: var(--accent-hover); transform: scale(1.05); }
+        .sidebar-section { margin-bottom: 20px; }
+        .sidebar-section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-tertiary); padding: 0 14px 8px; }
+        #new-chat-btn:hover { background: var(--accent-hover); transform: scale(1.05); }
+        #conversation-list { flex: 1; overflow-y: auto; margin-top: 4px; }
+        .conv-item { padding: 10px 12px; border-radius: var(--radius-md); cursor: pointer; transition: all var(--transition-fast); margin-bottom: 2px; display: flex; align-items: center; gap: 10px; border: 1px solid transparent; }
+        .conv-item:hover { background: var(--glass); border-color: var(--glass-border); }
+        .conv-item.active { background: var(--accent-subtle); border-color: rgba(0,122,255,0.2); }
+        .conv-item .title { flex: 1; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .conv-item .date { font-size: 10px; color: var(--text-tertiary); white-space: nowrap; }
+        .conv-item .delete-btn { color: var(--text-tertiary); cursor: pointer; opacity: 0; transition: all var(--transition-fast); padding: 2px; border-radius: 4px; }
+        .conv-item:hover .delete-btn { opacity: 0.7; }
+        .conv-item .delete-btn:hover { opacity: 1; color: var(--error); background: rgba(255,59,48,0.1); }
+        #user-info { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-top: 1px solid var(--glass-border); margin-top: 12px; }
+        #user-avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), #5ac8fa); display: flex; align-items: center; justify-content: center; font-weight: 600; color: #fff; font-size: 13px; flex-shrink: 0; }
+        #user-name { font-size: 13px; font-weight: 500; flex: 1; }
+        #logout-btn { margin-left: auto; background: none; border: none; color: var(--text-tertiary); cursor: pointer; font-size: 16px; padding: 4px; border-radius: 6px; transition: all var(--transition-fast); }
+        #logout-btn:hover { color: var(--error); background: rgba(255,59,48,0.1); }
+        #main { flex: 1; display: flex; flex-direction: column; background: var(--bg-chat); position: relative; width: 100%; max-width: 100vw; }
+        #chat-header { padding: 12px 16px; padding-top: calc(12px + var(--safe-top)); border-bottom: 1px solid var(--glass-border); display: flex; align-items: center; gap: 10px; backdrop-filter: blur(12px); background: rgba(0,0,0,0.6); flex-shrink: 0; z-index: 10; }
+        #menu-toggle { background: none; border: none; color: var(--text-secondary); font-size: 20px; cursor: pointer; padding: 4px; display: flex; align-items: center; border-radius: 6px; transition: all var(--transition-fast); }
+        #menu-toggle:hover { background: var(--glass); color: var(--text-primary); }
+        #chat-header-title { font-size: 15px; font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .header-action-btn { background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 6px; border-radius: 8px; transition: all var(--transition-fast); font-size: 18px; }
+        .header-action-btn:hover { background: var(--glass); color: var(--text-primary); }
+        #messages { flex: 1; padding: 16px; padding-bottom: 8px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; -webkit-overflow-scrolling: touch; position: relative; }
+        .empty-state { display: none; flex-direction: column; align-items: center; justify-content: center; height: 100%; text-align: center; padding: 40px; color: var(--text-secondary); }
+        .empty-state.visible { display: flex; }
+        .empty-state-icon { width: 64px; height: 64px; background: var(--glass); border-radius: var(--radius-xl); display: flex; align-items: center; justify-content: center; margin-bottom: 20px; border: 1px solid var(--glass-border); }
+        .empty-state h3 { font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px; }
+        .empty-state p { font-size: 14px; max-width: 320px; line-height: 1.5; margin-bottom: 24px; }
+        .empty-state-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+        .empty-state-btn { padding: 8px 16px; background: var(--glass); border: 1px solid var(--glass-border); border-radius: var(--radius-full); color: var(--text-primary); font-size: 13px; font-weight: 500; cursor: pointer; transition: all var(--transition-fast); }
+        .empty-state-btn:hover { background: var(--glass-hover); border-color: var(--glass-border-hover); transform: translateY(-1px); }
+        .empty-state-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+        .empty-state-btn.primary:hover { background: var(--accent-hover); }
+        .msg { max-width: 85%; padding: 10px 14px; border-radius: 18px; font-size: 15px; line-height: 1.5; word-wrap: break-word; animation: fadeIn 0.3s ease-out; }
+        .msg.user { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+        .msg.onyx { align-self: flex-start; background: var(--glass); border: 1px solid var(--glass-border); border-bottom-left-radius: 4px; }
+        .msg .time { font-size: 10px; opacity: 0.6; margin-top: 4px; display: block; }
+        .msg pre { background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; overflow-x: auto; margin-top: 8px; font-size: 13px; }
+        @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+        #input-area {
+            padding: 14px 12px;
+            padding-bottom: calc(14px + var(--safe-bottom));
+            border-top: 1px solid var(--glass-border);
+            display: flex; gap: 10px; align-items: center;
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(12px);
+            flex-shrink: 0;
+        }
+        #input-area input {
+            flex: 1;
+            background: var(--input-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 10px 16px;
+            font-size: 15px;
+            color: var(--text-primary);
+            outline: none;
+            transition: 0.2s;
+            min-height: 44px;
+        }
+        #input-area input:focus { border-color: var(--accent); }
+        #input-area input::placeholder { color: var(--text-secondary); }
+        #input-area button {
+            background: var(--accent);
+            border: none;
+            border-radius: 50%;
+            width: 44px; height: 44px;
+            display: flex; align-items: center; justify-content: center;
+            color: #fff; cursor: pointer; transition: 0.2s;
+            flex-shrink: 0;
+        }
+        #input-area button:hover { background: var(--accent-hover); transform: scale(1.04); }
+        #input-area button:disabled { opacity: 0.4; pointer-events: none; }
+        #file-upload-btn { background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 20px; padding: 6px; border-radius: 50%; transition: 0.2s; }
+        #file-upload-btn:hover { background: var(--glass); color: var(--text-primary); }
+        #login-screen { display: none !important; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--glass); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+        @media (min-width: 768px) {
+            #sidebar { position: relative; transform: translateX(0) !important; width: 280px; box-shadow: none; border-right: 1px solid var(--glass-border); padding: 20px 16px; }
+            #sidebar-backdrop { display: none; }
+            #menu-toggle { display: none; }
+            #main { max-width: calc(100vw - 280px); }
+            .msg { max-width: 75%; }
+        }
+        @media (max-width: 480px) {
+            .msg { max-width: 90%; font-size: 14px; }
+            #input-area { padding: 16px 12px; padding-bottom: calc(16px + var(--safe-bottom)); }
+            #input-area input { padding: 12px 16px; min-height: 50px; font-size: 16px; }
+            #input-area button { width: 50px; height: 50px; }
+            #chat-header-title { font-size: 14px; }
+        }
+
+        /* --- Command Palette (Linear / Raycast) --- */
+        #cmd-palette-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.65); backdrop-filter: blur(12px);
+            z-index: 2000; display: none; align-items: flex-start; justify-content: center;
+            padding-top: min(20vh, 160px); opacity: 0; transition: opacity var(--transition-medium);
+        }
+        #cmd-palette-overlay.open { display: flex; opacity: 1; }
+        .cmd-palette {
+            width: 92%; max-width: 560px; background: var(--bg-secondary);
+            border: 1px solid var(--glass-border); border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-lg); overflow: hidden;
+            transform: translateY(-12px) scale(0.98); transition: transform var(--transition-medium);
+        }
+        #cmd-palette-overlay.open .cmd-palette { transform: translateY(0) scale(1); }
+        .cmd-palette-input {
+            width: 100%; padding: 16px 20px; background: transparent; border: none;
+            border-bottom: 1px solid var(--glass-border); color: var(--text-primary);
+            font-size: 16px; font-family: inherit; outline: none;
+        }
+        .cmd-palette-input::placeholder { color: var(--text-tertiary); }
+        .cmd-palette-list { max-height: 320px; overflow-y: auto; padding: 8px; }
+        .cmd-palette-item {
+            display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+            border-radius: var(--radius-md); cursor: pointer; transition: background var(--transition-fast);
+            font-size: 14px; color: var(--text-primary);
+        }
+        .cmd-palette-item:hover, .cmd-palette-item.active { background: var(--glass-hover); }
+        .cmd-palette-item .icon { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: var(--glass); border-radius: var(--radius-sm); color: var(--text-secondary); }
+        .cmd-palette-item .shortcut { margin-left: auto; font-size: 11px; color: var(--text-tertiary); background: var(--glass); padding: 2px 8px; border-radius: var(--radius-full); }
+
+        /* --- Toast Notifications (Vercel) --- */
+        #toast-container { position: fixed; top: 16px; right: 16px; z-index: 3000; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+        .toast {
+            pointer-events: auto; display: flex; align-items: center; gap: 10px;
+            padding: 12px 16px; background: var(--bg-tertiary); border: 1px solid var(--glass-border);
+            border-radius: var(--radius-lg); box-shadow: var(--shadow-md); color: var(--text-primary);
+            font-size: 13px; font-weight: 500; min-width: 280px; max-width: 400px;
+            animation: toastIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+            transition: all var(--transition-medium);
+        }
+        .toast.success { border-left: 3px solid var(--success); }
+        .toast.error { border-left: 3px solid var(--error); }
+        .toast.info { border-left: 3px solid var(--accent); }
+        .toast.removing { opacity: 0; transform: translateX(20px); }
+        @keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+
+        /* --- Skeleton Loaders (Loom) --- */
+        .skeleton { background: linear-gradient(90deg, var(--glass) 25%, var(--glass-hover) 50%, var(--glass) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: var(--radius-sm); }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        .typing-indicator { display: flex; gap: 4px; padding: 4px 0; }
+        .typing-indicator span { width: 6px; height: 6px; background: var(--text-tertiary); border-radius: 50%; animation: bounce 1.4s infinite ease-in-out both; }
+        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes bounce { 0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; } 40% { transform: scale(1); opacity: 1; } }
+
+        /* --- Quick Actions (Raycast) --- */
+        .quick-actions { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 16px 8px; }
+        .quick-action-chip {
+            display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px;
+            background: var(--glass); border: 1px solid var(--glass-border); border-radius: var(--radius-full);
+            color: var(--text-secondary); font-size: 12px; font-weight: 500; cursor: pointer;
+            transition: all var(--transition-fast); user-select: none;
+        }
+        .quick-action-chip:hover { background: var(--glass-hover); border-color: var(--glass-border-hover); color: var(--text-primary); transform: translateY(-1px); }
+        .quick-action-chip kbd { font-size: 10px; background: var(--bg-tertiary); padding: 1px 5px; border-radius: 4px; color: var(--text-tertiary); font-family: inherit; }
+
+        /* --- Improved Message Animations --- */
+        .msg { animation: messageIn 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes messageIn { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+        /* --- Improved Scrollbar --- */
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--glass); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--glass-hover); }
+
+        /* --- Keyboard Shortcut Hints --- */
+        .kbd-hint { font-size: 11px; color: var(--text-tertiary); background: var(--glass); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--glass-border); }
+
+        /* --- ONYX Icon System --- */
+        .onyx-icon-slot { display: inline-flex; align-items: center; justify-content: center; color: currentColor; flex-shrink: 0; }
+        .onyx-icon { display: block; width: 100%; height: 100%; color: currentColor; }
+        .onyx-icon--xs { width: 12px; height: 12px; }
+        .onyx-icon--sm { width: 14px; height: 14px; }
+        .onyx-icon--md { width: 16px; height: 16px; }
+        .onyx-icon--lg { width: 18px; height: 18px; }
+        .onyx-icon--xl { width: 20px; height: 20px; }
+        .conv-item-icon { display: inline-flex; align-items: center; justify-content: center; color: var(--text-tertiary); flex-shrink: 0; }
+        .msg-body { display: flex; align-items: flex-start; gap: 10px; }
+        .msg-content { min-width: 0; flex: 1; }
+        .msg-prefix-icon {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 28px; height: 28px; border-radius: 999px;
+            background: var(--glass); border: 1px solid var(--glass-border);
+            color: var(--text-secondary); flex-shrink: 0; margin-top: 1px;
+        }
+        .msg-prefix-icon.is-success { color: var(--success); }
+        .msg-prefix-icon.is-error { color: var(--error); }
+        .msg-prefix-icon.is-warning { color: var(--warning); }
+        .toast-icon {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 18px; height: 18px; color: currentColor; flex-shrink: 0;
+        }
+    </style>
+</head>
+<body>
+    <!-- Command Palette -->
+    <div id="cmd-palette-overlay">
+        <div class="cmd-palette">
+            <input type="text" class="cmd-palette-input" placeholder="Tapez une commande ou recherchez..." autocomplete="off">
+            <div class="cmd-palette-list"></div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
+    <!-- Main App -->
+    <div id="app">
+        <div id="sidebar-backdrop"></div>
+        <div id="sidebar">
+            <div id="sidebar-header">
+                <h1>Onyx</h1>
+                <button id="new-chat-btn" aria-label="Nouvelle conversation"><span class="onyx-icon-slot" data-onyx-icon="new-chat" data-icon-size="md"></span></button>
+            </div>
+            <div style="padding: 0 14px 8px;">
+                <input type="text" id="sidebar-search" placeholder="Rechercher..." style="width:100%; padding:8px 12px; background:var(--glass); border:1px solid var(--glass-border); border-radius:var(--radius-md); color:var(--text-primary); font-size:13px; outline:none; transition:all var(--transition-fast);">
+            </div>
+            <div id="conversation-list"></div>
+            <div id="user-info">
+                <div id="user-avatar">O</div>
+                <span id="user-name">Utilisateur</span>
+            </div>
+        </div>
+        <div id="main">
+            <div id="chat-header">
+                <button id="menu-toggle" aria-label="Ouvrir la navigation"><span class="onyx-icon-slot" data-onyx-icon="menu" data-icon-size="lg"></span></button>
+                <span id="chat-header-title">Conversation</span>
+                <div id="voice-indicator-pill" class="voice-pill listening" title="Système vocal local (Mot-clé: hey_jarvis)">
+                    <span class="voice-dot"></span>
+                    <span id="voice-status-text">Écoute "hey_jarvis"</span>
+                    <button id="voice-toggle-btn" class="voice-icon-btn" aria-label="Mettre le micro en pause"><span class="onyx-icon-slot" data-onyx-icon="voice" data-icon-size="sm"></span></button>
+                </div>
+                <button class="header-action-btn" id="theme-toggle" aria-label="Basculer le thème"><span class="onyx-icon-slot" data-onyx-icon="theme-dark" data-icon-size="lg"></span></button>
+                <button class="header-action-btn" id="export-btn" aria-label="Exporter la conversation"><span class="onyx-icon-slot" data-onyx-icon="export" data-icon-size="lg"></span></button>
+                <button class="header-action-btn" id="history-btn" aria-label="Voir l’historique"><span class="onyx-icon-slot" data-onyx-icon="history" data-icon-size="lg"></span></button>
+            </div>
+            <div id="messages">
+                <div id="empty-state" class="empty-state visible">
+                    <div class="empty-state-icon"><span class="onyx-icon-slot" data-onyx-icon="assistant" data-icon-size="xl" style="color:var(--accent);"></span></div>
+                    <h3>Bonjour, je suis Onyx</h3>
+                    <p>Votre assistant intelligent local. Posez-moi une question ou utilisez une commande rapide ci-dessous.</p>
+                    <div class="empty-state-actions">
+                        <button class="empty-state-btn primary" onclick="cmdInput.focus()">Nouvelle conversation</button>
+                        <button class="empty-state-btn" onclick="document.querySelector('[data-action=palette]').click()">Voir les commandes</button>
+                    </div>
+                </div>
+            </div>
+            <div id="input-area">
+                <button id="file-upload-btn" title="Joindre un fichier" aria-label="Joindre un fichier"><span class="onyx-icon-slot" data-onyx-icon="attach" data-icon-size="lg"></span></button>
+                <input type="text" id="cmd-input" placeholder="Posez votre question ou utilisez /cmd..." autocomplete="off">
+                <button id="send-btn" title="Envoyer" aria-label="Envoyer"><span class="onyx-icon-slot" data-onyx-icon="send" data-icon-size="lg"></span></button>
+            </div>
+            <div class="quick-actions">
+                <button class="quick-action-chip" data-action="new-chat"><span class="onyx-icon-slot" data-onyx-icon="new-chat" data-icon-size="xs"></span> Nouveau chat <kbd>Cmd+N</kbd></button>
+                <button class="quick-action-chip" data-action="export"><span class="onyx-icon-slot" data-onyx-icon="export" data-icon-size="xs"></span> Exporter <kbd>Cmd+E</kbd></button>
+                <button class="quick-action-chip" data-action="theme"><span class="onyx-icon-slot" data-onyx-icon="theme-light" data-icon-size="xs"></span> Thème <kbd>Cmd+D</kbd></button>
+                <button class="quick-action-chip" data-action="palette"><span class="onyx-icon-slot" data-onyx-icon="search" data-icon-size="xs"></span> Commandes <kbd>Cmd+K</kbd></button>
+            </div>
+            <input type="file" id="file-input" style="display:none" multiple>
+        </div>
+    </div>
+
+    <!-- History Modal -->
+    <div id="history-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); backdrop-filter:blur(8px); z-index:999; align-items:center; justify-content:center; padding:20px;">
+        <div style="background:var(--bg-secondary); border-radius:24px; padding:20px; max-width:500px; width:100%; max-height:80vh; overflow-y:auto;">
+            <h2 style="margin-bottom:16px;">Historique</h2>
+            <div id="history-list"></div>
+            <button id="close-history" style="margin-top:16px; background:var(--glass); border:none; border-radius:12px; padding:10px 20px; color:var(--text-primary); cursor:pointer; width:100%;">Fermer</button>
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+            }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+
+        // --- DOM refs ---
+        const convList = document.getElementById('conversation-list');
+        const messages = document.getElementById('messages');
+        const cmdInput = document.getElementById('cmd-input');
+        const sendBtn = document.getElementById('send-btn');
+        const newChatBtn = document.getElementById('new-chat-btn');
+        const themeToggle = document.getElementById('theme-toggle');
+        const exportBtn = document.getElementById('export-btn');
+        const historyBtn = document.getElementById('history-btn');
+        const fileUploadBtn = document.getElementById('file-upload-btn');
+        const fileInput = document.getElementById('file-input');
+        const historyModal = document.getElementById('history-modal');
+        const historyList = document.getElementById('history-list');
+        const closeHistory = document.getElementById('close-history');
+        const chatHeaderTitle = document.getElementById('chat-header-title');
+        const menuToggle = document.getElementById('menu-toggle');
+        const sidebar = document.getElementById('sidebar');
+        const sidebarBackdrop = document.getElementById('sidebar-backdrop');
+
+        let sessionId = localStorage.getItem('onyx_session_id') || 'anonymous';
+        let username = 'Utilisateur';
+        let currentConvId = localStorage.getItem('onyx_current_conv') || null;
+        let messageCounter = 0;
+        let docMode = false;
+        let isDark = true;
+
+        const ONYX_ICON_MAP = {
+            'new-chat': 'plus',
+            'logout': 'log-out',
+            'menu': 'menu',
+            'voice': 'mic',
+            'voice-off': 'mic-off',
+            'theme-dark': 'moon',
+            'theme-light': 'sun',
+            'export': 'download',
+            'history': 'history',
+            'assistant': 'sparkles',
+            'attach': 'paperclip',
+            'send': 'arrow-up',
+            'search': 'search',
+            'delete': 'trash-2',
+            'close': 'x',
+            'success': 'circle-check',
+            'error': 'circle-x',
+            'info': 'info',
+            'warning': 'triangle-alert',
+            'news': 'newspaper',
+            'email': 'mail',
+            'memory': 'brain',
+            'todo': 'list-todo',
+            'system': 'monitor',
+            'weather': 'cloud-sun',
+            'volume': 'volume-2',
+            'summary': 'file-text',
+            'analytics': 'chart-column',
+            'tool': 'wrench',
+            'conversation': 'message-square',
+            'command': 'terminal'
+        };
+
+        function iconMarkup(name, { size = 'md', className = '' } = {}) {
+            const lucideName = ONYX_ICON_MAP[name] || name;
+            const classes = ['onyx-icon', `onyx-icon--${size}`, className].filter(Boolean).join(' ');
+            return `<i data-lucide="${lucideName}" class="${classes}" aria-hidden="true"></i>`;
+        }
+
+        function refreshIcons() {
+            lucide.createIcons({
+                attrs: {
+                    'stroke-width': '1.75',
+                    'stroke-linecap': 'round',
+                    'stroke-linejoin': 'round'
+                }
+            });
+        }
+
+        function setOnyxIcon(element, name, options = {}) {
+            if (!element) return;
+            element.innerHTML = iconMarkup(name, options);
+            refreshIcons();
+        }
+
+        function hydrateOnyxIcons(root = document) {
+            root.querySelectorAll('[data-onyx-icon]').forEach(slot => {
+                slot.innerHTML = iconMarkup(slot.dataset.onyxIcon, {
+                    size: slot.dataset.iconSize || 'md',
+                    className: slot.dataset.iconClass || ''
+                });
+            });
+            refreshIcons();
+        }
+
+        function normalizeUiCopy(text) {
+            if (!text) return '';
+            return text
+                .replace(/(^|\n)\s*📰\s+/g, '$1')
+                .replace(/(^|\n)\s*📬\s+/g, '$1')
+                .replace(/(^|\n)\s*🌤️\s+/g, '$1')
+                .replace(/(^|\n)\s*💻\s+/g, '$1')
+                .replace(/(^|\n)\s*📊\s+/g, '$1')
+                .replace(/(^|\n)\s*📋\s+/g, '$1')
+                .replace(/(^|\n)\s*🔍\s+/g, '$1')
+                .replace(/(^|\n)\s*💾\s+/g, '$1')
+                .replace(/(^|\n)\s*📝\s+/g, '$1')
+                .replace(/(^|\n)\s*🔊\s+/g, '$1Réponse vocale : ')
+                .replace(/(^|\n)\s*🎙️\s+/g, '$1Transcription vocale : ')
+                .replace(/(^|\n)\s*✅\s+/g, '$1Succès : ')
+                .replace(/(^|\n)\s*❌\s+/g, '$1Erreur : ')
+                .replace(/(^|\n)\s*⚠️\s+/g, '$1Attention : ')
+                .replace(/(^|\n)\s*⚙️\s+/g, '$1Outil : ')
+                .replace(/(^|\n)\s*⬜\s+/g, '$1À faire : ');
+        }
+
+        function detectMessageMeta(sender, text) {
+            if (sender === 'user') return null;
+            const plain = (text || '').replace(/\*\*/g, '').trim().toLowerCase();
+            if (!plain) return null;
+            if (plain.startsWith('erreur')) return { icon: 'error', tone: 'error' };
+            if (plain.startsWith('attention')) return { icon: 'warning', tone: 'warning' };
+            if (plain.startsWith('succès') || plain.startsWith('exécution réussie')) return { icon: 'success', tone: 'success' };
+            if (plain.startsWith('actualités')) return { icon: 'news' };
+            if (plain.startsWith('derniers emails') || plain.startsWith('emails non lus') || plain.startsWith('aucun email')) return { icon: 'email' };
+            if (plain.startsWith('résultats de la mémoire') || plain.startsWith('aucun souvenir')) return { icon: 'memory' };
+            if (plain.startsWith('vos tâches') || plain.startsWith('planification d\'objectif') || plain.startsWith('aucune tâche')) return { icon: 'todo' };
+            if (plain.startsWith('statut système') || plain.startsWith("rapport d'état système")) return { icon: 'system' };
+            if (plain.startsWith('météo')) return { icon: 'weather' };
+            if (plain.startsWith('analyse de données')) return { icon: 'analytics' };
+            if (plain.startsWith('résumé du fichier') || plain.startsWith('conversation exportée')) return { icon: 'summary' };
+            if (plain.startsWith('outil')) return { icon: 'tool' };
+            if (plain.startsWith('réponse vocale')) return { icon: 'volume' };
+            if (plain.startsWith('transcription vocale')) return { icon: 'voice' };
+            return null;
+        }
+
+        function formatMessageContent(sender, text) {
+            const source = sender === 'user' ? text : normalizeUiCopy(text);
+            return source
+                .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+                .replace(/```python([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.+?)\*/g, '<em>$1</em>')
+                .replace(/\n/g, '<br>');
+        }
+
+        function buildMessageMarkup(sender, text) {
+            const normalized = sender === 'user' ? text : normalizeUiCopy(text);
+            const meta = detectMessageMeta(sender, normalized);
+            const formatted = formatMessageContent(sender, text);
+            const body = meta?.icon
+                ? `<div class="msg-body"><span class="msg-prefix-icon${meta.tone ? ` is-${meta.tone}` : ''}">${iconMarkup(meta.icon, { size: 'md' })}</span><div class="msg-content">${formatted}</div></div>`
+                : formatted;
+            return body + `<span class="time">${new Date().toLocaleTimeString()}</span>`;
+        }
+
+        function toggleSidebar() {
+            const open = sidebar.classList.toggle('open');
+            sidebarBackdrop.classList.toggle('show', open);
+        }
+        menuToggle.addEventListener('click', toggleSidebar);
+        sidebarBackdrop.addEventListener('click', toggleSidebar);
+
+        function showLogin() { /* auth désactivée */ }
+        function hideLogin() { /* auth désactivée */ }
+
+        async function login(user, pass) {
+            return true;
+        }
+
+        themeToggle.addEventListener('click', () => {
+            isDark = !isDark;
+            document.body.classList.toggle('light-mode', !isDark);
+            setOnyxIcon(themeToggle, isDark ? 'theme-dark' : 'theme-light', { size: 'lg' });
+        });
+
+        async function loadConversations() {
+            if (!sessionId) return;
+            const res = await fetch('/api/history/list', { headers: { 'X-Session-ID': sessionId } });
+            const data = await res.json();
+            if (data.conversations) {
+                convList.innerHTML = data.conversations.map(conv => `
+                    <div class="conv-item ${conv.id === currentConvId ? 'active' : ''}" data-id="${conv.id}">
+                        <span class="conv-item-icon">${iconMarkup('conversation', { size: 'sm' })}</span>
+                        <span class="title">${conv.title || 'Sans titre'}</span>
+                        <span class="date">${conv.updated_at ? conv.updated_at.slice(5,16).replace('T',' ') : ''}</span>
+                        <button class="delete-btn" data-id="${conv.id}" aria-label="Supprimer cette conversation">${iconMarkup('delete', { size: 'sm' })}</button>
+                    </div>
+                `).join('');
+                refreshIcons();
+                document.querySelectorAll('.conv-item').forEach(el => {
+                    el.addEventListener('click', (e) => {
+                        if (e.target.closest('.delete-btn')) return;
+                        const id = el.dataset.id;
+                        loadConversation(id);
+                        if (window.innerWidth < 768 && sidebar.classList.contains('open')) toggleSidebar();
+                    });
+                });
+                document.querySelectorAll('.delete-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const id = btn.dataset.id;
+                        deleteConversation(id);
+                    });
+                });
+            }
+        }
+
+        async function loadConversation(convId) {
+            if (!sessionId) return;
+            const res = await fetch('/api/history/load', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Session-ID': sessionId },
+                body: JSON.stringify({ conv_id: convId })
+            });
+            const data = await res.json();
+            if (data.messages) {
+                const emptyState = document.getElementById('empty-state');
+                if (emptyState) emptyState.classList.remove('visible');
+                messages.innerHTML = '';
+                data.messages.forEach(msg => {
+                    const sender = msg.role === 'user' ? 'user' : 'onyx';
+                    appendMessage(sender, msg.content, false);
+                });
+                currentConvId = convId;
+                localStorage.setItem('onyx_current_conv', currentConvId);
+                chatHeaderTitle.textContent = data.messages.length > 0 ? data.messages[0].content.slice(0,40) : 'Conversation';
+                await loadConversations();
+                messages.scrollTop = messages.scrollHeight;
+            }
+        }
+
+        async function deleteConversation(convId) {
+            if (!confirm('Supprimer cette conversation ?')) return;
+            await fetch('/api/history/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Session-ID': sessionId },
+                body: JSON.stringify({ conv_id: convId })
+            });
+            if (currentConvId === convId) {
+                currentConvId = null;
+                messages.innerHTML = '';
+                const emptyState = document.getElementById('empty-state');
+                if (emptyState) emptyState.classList.add('visible');
+                chatHeaderTitle.textContent = 'Conversation';
+            }
+            await loadConversations();
+        }
+
+        async function newConversation() {
+            const res = await fetch('/api/history/new', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Session-ID': sessionId }
+            });
+            const data = await res.json();
+            if (data.conv_id) {
+                currentConvId = data.conv_id;
+                localStorage.setItem('onyx_current_conv', currentConvId);
+                messages.innerHTML = '';
+                const emptyState = document.getElementById('empty-state');
+                if (emptyState) emptyState.classList.add('visible');
+                chatHeaderTitle.textContent = 'Nouvelle conversation';
+                await loadConversations();
+                if (window.innerWidth < 768 && sidebar.classList.contains('open')) toggleSidebar();
+            }
+        }
+        newChatBtn.addEventListener('click', newConversation);
+
+        async function loadLastConversation() {
+            const res = await fetch('/api/history/last', { headers: { 'X-Session-ID': sessionId } });
+            const data = await res.json();
+            if (data.conversation) {
+                await loadConversation(data.conversation.id);
+            } else {
+                await newConversation();
+            }
+        }
+
+        function appendMessage(sender, text, save = true) {
+            const div = document.createElement('div');
+            div.className = `msg ${sender}`;
+            const formatted = text
+                .replace(/```python([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+                .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+                .replace(/\n/g, '<br>');
+            div.innerHTML = formatted + `<span class="time">${new Date().toLocaleTimeString()}</span>`;
+            messages.appendChild(div);
+            messages.scrollTop = messages.scrollHeight;
+            return div;
+        }
+
+        async function sendMessage() {
+            const text = cmdInput.value.trim();
+            if (!text) return;
+            cmdInput.value = '';
+            const handled = await handleCommand(text);
+            if (handled) return;
+
+            appendMessage('user', text);
+            const loadingId = appendMessage('onyx', 'Réflexion en cours...');
+
+            try {
+                const res = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Session-ID': sessionId },
+                    body: JSON.stringify({
+                        prompt: text,
+                        language: 'fr',
+                        doc_mode: docMode,
+                        conv_id: currentConvId,
+                        settings: { serperKey: localStorage.getItem('serperKey') || '' }
+                    })
+                });
+                const data = await res.json();
+                const loadingEl = messages.querySelector(`.msg.onyx:last-child`);
+                if (loadingEl) {
+                    const formatted = data.response
+                        .replace(/```python([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+                        .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+                        .replace(/\n/g, '<br>');
+                    loadingEl.innerHTML = formatted + `<span class="time">${new Date().toLocaleTimeString()}</span>`;
+                    if (data.model_used) {
+                        loadingEl.innerHTML += `<span style="font-size:10px; opacity:0.5; display:block; margin-top:4px;">modèle: ${data.model_used}</span>`;
+                    }
+                    if (data.conv_id) {
+                        await loadConversations();
+                    }
+                }
+            } catch (err) {
+                const loadingEl = messages.querySelector(`.msg.onyx:last-child`);
+                if (loadingEl) loadingEl.innerHTML = 'Erreur serveur.';
+                console.error(err);
+            }
+        }
+
+        async function handleCommand(text) {
+            if (text.startsWith('/weather')) {
+                const city = text.replace('/weather', '').trim() || 'Paris';
+                appendMessage('user', text);
+                const res = await fetch('/api/weather', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Session-ID': sessionId }, body: JSON.stringify({ city }) });
+                const data = await res.json();
+                appendMessage('onyx', data.message || 'Erreur météo');
+                return true;
+            }
+            if (text.startsWith('/news')) {
+                let query = text.replace('/news', '').trim() || 'actualités';
+                appendMessage('user', text);
+                const res = await fetch('/api/news', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Session-ID': sessionId }, body: JSON.stringify({ query }) });
+                const data = await res.json();
+                let msg = '**Actualités**\n\n';
+                data.articles.forEach((a, i) => {
+                    msg += `${i+1}. ${a.title}\n${a.description || ''}\n[Lien](${a.url || '#'})\n\n`;
+                });
+                appendMessage('onyx', msg);
+                return true;
+            }
+            if (text.startsWith('/mail') || text.startsWith('/email')) {
+                const rest = text.startsWith('/mail') ? text.replace('/mail','').trim() : text.replace('/email','').trim();
+                if (rest.startsWith('read') || rest === '') {
+                    const parts = rest.split(' ');
+                    let limit = 5;
+                    if (parts.length>1 && !isNaN(parts[1])) limit = parseInt(parts[1]);
+                    appendMessage('user', text);
+                    const res = await fetch('/api/email/read', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Session-ID': sessionId }, body: JSON.stringify({ limit }) });
+                    const data = await res.json();
+                    if (data.success && data.emails && data.emails.length>0) {
+                        let msg = '**Derniers emails non lus**\n\n';
+                        data.emails.forEach((e,i) => {
+                            msg += `${i+1}. **De :** ${e.from}\n   **Sujet :** ${e.subject}\n   **Aperçu :** ${e.snippet || '(vide)'}\n\n`;
+                        });
+                        appendMessage('onyx', msg);
+                    } else {
+                        appendMessage('onyx', 'Aucun email non lu trouvé.');
+                    }
+                    return true;
+                } else {
+                    const parts = rest.split('|');
+                    if (parts.length < 3) {
+                        appendMessage('onyx', 'Erreur : format attendu `/mail destinataire|sujet|message`.');
+                        return true;
+                    }
+                    const [to, subject, body] = parts.map(s=>s.trim());
+                    appendMessage('user', text);
+                    const res = await fetch('/api/email/send', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Session-ID': sessionId }, body: JSON.stringify({ to, subject, body }) });
+                    const data = await res.json();
+                    appendMessage('onyx', data.message || data.error || 'Email envoyé');
+                    return true;
+                }
+            }
+            if (text.startsWith('/system')) {
+                const cmd = text.replace('/system', '').trim();
+                if (cmd.startsWith('lock')) {
+                    appendMessage('user', text);
+                    const res = await fetch('/api/system/lock', { method: 'POST', headers: { 'X-Session-ID': sessionId } });
+                    const data = await res.json();
+                    appendMessage('onyx', data.message || 'Commande exécutée');
+                    return true;
+                }
+                if (cmd.startsWith('sleep')) {
+                    appendMessage('user', text);
+                    const res = await fetch('/api/system/sleep', { method: 'POST', headers: { 'X-Session-ID': sessionId } });
+                    const data = await res.json();
+                    appendMessage('onyx', data.message || 'Commande exécutée');
+                    return true;
+                }
+                if (cmd.startsWith('restart')) {
+                    appendMessage('user', text);
+                    const res = await fetch('/api/system/restart', { method: 'POST', headers: { 'X-Session-ID': sessionId } });
+                    const data = await res.json();
+                    appendMessage('onyx', data.message || 'Commande exécutée');
+                    return true;
+                }
+                if (cmd.startsWith('volume')) {
+                    const parts = cmd.split(' ');
+                    if (parts.length > 1) {
+                        const vol = parseInt(parts[1]);
+                        if (!isNaN(vol)) {
+                            appendMessage('user', text);
+                            const res = await fetch('/api/system/volume', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Session-ID': sessionId }, body: JSON.stringify({ level: vol }) });
+                            const data = await res.json();
+                            appendMessage('onyx', data.message || 'Volume réglé');
+                            return true;
+                        }
+                    }
+                    appendMessage('onyx', 'Erreur : utilisation `/system volume <niveau>`.');
+                    return true;
+                }
+                if (cmd.startsWith('brightness')) {
+                    const parts = cmd.split(' ');
+                    if (parts.length > 1) {
+                        const bright = parseInt(parts[1]);
+                        if (!isNaN(bright)) {
+                            appendMessage('user', text);
+                            const res = await fetch('/api/system/brightness', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Session-ID': sessionId }, body: JSON.stringify({ level: bright }) });
+                            const data = await res.json();
+                            appendMessage('onyx', data.message || 'Luminosité réglée');
+                            return true;
+                        }
+                    }
+                    appendMessage('onyx', 'Erreur : utilisation `/system brightness <niveau>`.');
+                    return true;
+                }
+                if (cmd.startsWith('status')) {
+                    appendMessage('user', text);
+                    const res = await fetch('/api/system/status', { method: 'GET', headers: { 'X-Session-ID': sessionId } });
+                    const data = await res.json();
+                    appendMessage('onyx', data.message || 'Statut système');
+                    return true;
+                }
+                appendMessage('onyx', 'Erreur : commandes système disponibles `/system lock`, `/system sleep`, `/system restart`, `/system volume <n>`, `/system brightness <n>`, `/system status`.');
+                return true;
+            }
+            if (text.startsWith('/launch')) {
+                const app = text.replace('/launch', '').trim();
+                if (app) {
+                    appendMessage('user', text);
+                    const res = await fetch('/api/system/launch', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Session-ID': sessionId }, body: JSON.stringify({ app_name: app }) });
+                    const data = await res.json();
+                    appendMessage('onyx', data.message || 'Lancement effectué');
+                    return true;
+                } else {
+                    appendMessage('onyx', 'Erreur : veuillez spécifier une application, par exemple `/launch notepad`.');
+                    return true;
+                }
+            }
+            if (text.startsWith('/script')) {
+                const script = text.replace('/script', '').trim();
+                if (script) {
+                    appendMessage('user', text);
+                    const res = await fetch('/api/system/script', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Session-ID': sessionId }, body: JSON.stringify({ script_path: script }) });
+                    const data = await res.json();
+                    appendMessage('onyx', data.output || 'Script exécuté');
+                    return true;
+                } else {
+                    appendMessage('onyx', 'Erreur : veuillez spécifier le chemin du script.');
+                    return true;
+                }
+            }
+            if (text.startsWith('/cmd')) {
+                const cmd = text.replace('/cmd', '').trim();
+                if (!cmd) { appendMessage('onyx', 'Erreur : veuillez fournir une commande après `/cmd`.'); return true; }
+                appendMessage('user', text);
+                const res = await fetch('/api/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Session-ID': sessionId },
+                    body: JSON.stringify({ command: cmd, confirm: true })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    let msg = `Succès : commande exécutée : \`${cmd}\`\n\n`;
+                    if (data.stdout) msg += `**Sortie :**\n\`\`\`\n${data.stdout}\n\`\`\``;
+                    else msg += '*(Commande exécutée sans sortie)*';
+                    appendMessage('onyx', msg);
+                } else {
+                    appendMessage('onyx', `Erreur : ${data.stderr || data.error}`);
+                }
+                return true;
+            }
+            if (text.startsWith('/code')) {
+                const code = text.replace('/code','').trim();
+                if (!code) { appendMessage('onyx','Erreur : veuillez fournir du code après `/code`.'); return true; }
+                appendMessage('user', text);
+                const res = await fetch('/api/execute', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Session-ID': sessionId },
+                    body: JSON.stringify({ code })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    appendMessage('onyx', `Succès : **Exécution réussie**\n\n\`\`\`\n${data.output}\n\`\`\``);
+                } else {
+                    appendMessage('onyx', `Erreur : **Exécution**\n\n\`\`\`\n${data.error}\n\`\`\``);
+                }
+                return true;
+            }
+            if (text.startsWith('/ltm')) {
+                const query = text.replace('/ltm','').trim();
+                if (!query) { appendMessage('onyx','Erreur : veuillez fournir une recherche après `/ltm`.'); return true; }
+                appendMessage('user', text);
+                const res = await fetch('/api/ltm/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Session-ID': sessionId },
+                    body: JSON.stringify({ query })
+                });
+                const data = await res.json();
+                if (data.results && data.results.length>0) {
+                    let msg = '**Résultats de la mémoire long terme :**\n\n';
+                    data.results.forEach((item,i) => {
+                        msg += `**${i+1}.** (${item.timestamp.slice(0,10)})\nVous : ${item.user}\nOnyx : ${item.assistant}\n\n`;
+                    });
+                    appendMessage('onyx', msg);
+                } else {
+                    appendMessage('onyx', 'Aucun souvenir trouvé.');
+                }
+                return true;
+            }
+            if (text.startsWith('/todo')) {
+                const task = text.replace('/todo','').trim();
+                if (task) {
+                    await fetch('/api/todos/add', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Session-ID': sessionId }, body: JSON.stringify({ title: task }) });
+                    appendMessage('onyx', `Succès : tâche ajoutée : "${task}"`);
+                } else {
+                    const res = await fetch('/api/todos', { headers: { 'X-Session-ID': sessionId } });
+                    const data = await res.json();
+                    if (data.todos && data.todos.length>0) {
+                        let list = '**Vos tâches :**\n';
+                        data.todos.forEach((t,i) => {
+                            list += `${i+1}. ${t.done ? 'Terminée :' : 'À faire :'} ${t.title}\n`;
+                        });
+                        appendMessage('onyx', list);
+                    } else {
+                        appendMessage('onyx', 'Aucune tâche en cours.');
+                    }
+                }
+                appendMessage('user', text);
+                return true;
+            }
+            if (text.startsWith('/tot')) {
+                const problem = text.replace('/tot', '').trim();
+                if (!problem) { appendMessage('onyx', 'Erreur : veuillez fournir un problème à résoudre.'); return true; }
+                appendMessage('user', text);
+                const res = await fetch('/api/tot', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Session-ID': sessionId },
+                    body: JSON.stringify({ problem })
+                });
+                const data = await res.json();
+                appendMessage('onyx', data.result || 'Erreur');
+                return true;
+            }
+            // Si aucune commande, on laisse passer pour le chat normal
+            return false;
+        }
+
+        // --- File upload ---
+        fileUploadBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await fetch('/api/upload', {
+                method: 'POST',
+                headers: { 'X-Session-ID': sessionId },
+                body: formData
+            });
+            const data = await res.json();
+            appendMessage('onyx', data.message || (data.success ? 'Succès : fichier téléversé.' : 'Erreur : échec du téléversement.'));
+            fileInput.value = '';
+        });
+
+        exportBtn.addEventListener('click', async () => {
+            if (!currentConvId) { appendMessage('onyx', 'Erreur : aucune conversation en cours.'); return; }
+            const res = await fetch('/api/history/export', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Session-ID': sessionId },
+                body: JSON.stringify({ conv_id: currentConvId })
+            });
+            const data = await res.json();
+            if (data.success) {
+                const blob = new Blob([data.content], { type: 'text/markdown' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = data.filename;
+                a.click();
+                appendMessage('onyx', `Conversation exportée : ${data.filename}`);
+            } else {
+                appendMessage('onyx', `Erreur : ${data.error}`);
+            }
+        });
+
+        historyBtn.addEventListener('click', async () => {
+            historyModal.style.display = 'flex';
+            const res = await fetch('/api/history/list', { headers: { 'X-Session-ID': sessionId } });
+            const data = await res.json();
+            if (data.conversations) {
+                historyList.innerHTML = data.conversations.map(conv => `
+                    <div style="padding:8px 12px; margin:4px 0; background:var(--glass); border-radius:10px; display:flex; justify-content:space-between; align-items:center;">
+                        <span>${conv.title || 'Sans titre'} <span style="font-size:11px; color:var(--text-secondary);">${conv.updated_at ? conv.updated_at.slice(5,16).replace('T',' ') : ''}</span></span>
+                        <button onclick="loadConversationFromHistory('${conv.id}')" style="background:var(--accent); border:none; border-radius:6px; padding:4px 12px; color:#fff; cursor:pointer;">Charger</button>
+                    </div>
+                `).join('');
+            } else {
+                historyList.innerHTML = '<div style="color:var(--text-secondary);padding:12px;">Aucune conversation.</div>';
+            }
+        });
+        closeHistory.addEventListener('click', () => historyModal.style.display = 'none');
+        window.loadConversationFromHistory = async (convId) => {
+            await loadConversation(convId);
+            historyModal.style.display = 'none';
+        };
+
+        // --- Three.js background ---
+        const canvas = document.createElement('canvas');
+        canvas.style.position = 'fixed';
+        canvas.style.top = '0';
+        canvas.style.left = '0';
+        canvas.style.width = '100%';
+        canvas.style.height = '100%';
+        canvas.style.zIndex = '-1';
+        canvas.style.pointerEvents = 'none';
+        document.body.prepend(canvas);
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        const geometry = new THREE.IcosahedronGeometry(1.8, 1);
+        const material = new THREE.MeshPhysicalMaterial({
+            color: 0x007aff,
+            roughness: 0.2,
+            metalness: 0.1,
+            transparent: true,
+            opacity: 0.08
+        });
+        const orb = new THREE.Mesh(geometry, material);
+        scene.add(orb);
+        const light = new THREE.PointLight(0x007aff, 0.5);
+        light.position.set(2, 3, 4);
+        scene.add(light);
+        const ambient = new THREE.AmbientLight(0xffffff, 0.1);
+        scene.add(ambient);
+        camera.position.z = 4;
+        function animate() {
+            requestAnimationFrame(animate);
+            orb.rotation.x += 0.001;
+            orb.rotation.y += 0.002;
+            renderer.render(scene, camera);
+        }
+        animate();
+        window.addEventListener('resize', () => {
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+        });
+
+        sendBtn.addEventListener('click', sendMessage);
+        cmdInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        const sidebarSearch = document.getElementById('sidebar-search');
+        if (sidebarSearch) {
+            sidebarSearch.addEventListener('input', (e) => {
+                const filter = e.target.value.toLowerCase();
+                document.querySelectorAll('.conv-item').forEach(el => {
+                    const title = el.querySelector('.title')?.textContent?.toLowerCase() || '';
+                    el.style.display = title.includes(filter) ? 'flex' : 'none';
+                });
+            });
+        }
+
+        // --- Initialize ---
+        hydrateOnyxIcons();
+        loadConversations();
+        loadLastConversation();
+
+        // --- Intégration Système Vocal Local (SocketIO & UI) ---
+        const socket = io();
+        const voicePill = document.getElementById('voice-indicator-pill');
+        const voiceStatusText = document.getElementById('voice-status-text');
+        const voiceToggleBtn = document.getElementById('voice-toggle-btn');
+
+        const voiceStateLabels = {
+            'listening': 'Écoute "hey_jarvis"',
+            'wake_detected': 'Mot-clé détecté !',
+            'recording': 'Enregistrement...',
+            'transcribing': 'Transcription...',
+            'thinking': 'Réflexion...',
+            'speaking': 'Onyx parle...',
+            'paused': 'Micro en pause',
+            'idle': 'Vocal inactif'
+        };
+
+        function updateVoiceUI(status) {
+            if (!voicePill || !voiceStatusText) return;
+            voicePill.className = 'voice-pill ' + (status || 'idle');
+            voiceStatusText.textContent = voiceStateLabels[status] || status;
+            if (voiceToggleBtn) {
+                voiceToggleBtn.setAttribute('aria-label', (status === 'paused' || status === 'idle') ? 'Activer le micro' : 'Mettre le micro en pause');
+                setOnyxIcon(voiceToggleBtn, (status === 'paused' || status === 'idle') ? 'voice-off' : 'voice', { size: 'sm' });
+            }
+        }
+
+        socket.on('connect', () => {
+            console.log('[SocketIO] Connecté au serveur Onyx V2');
+        });
+
+        socket.on('voice_status', (data) => {
+            if (data && data.status) {
+                updateVoiceUI(data.status);
+            }
+        });
+
+        socket.on('voice_wake_detected', (data) => {
+            updateVoiceUI('wake_detected');
+        });
+
+        socket.on('voice_transcription', (data) => {
+            if (data && data.text) {
+                appendMessage('user', data.text);
+            }
+        });
+
+        socket.on('voice_response', (data) => {
+            if (data && data.response) {
+                appendMessage('onyx', 'Réponse vocale : ' + data.response);
+            }
+        });
+
+        if (voiceToggleBtn) {
+            voiceToggleBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                try {
+                    const res = await fetch('/api/voice/toggle', { method: 'POST' });
+                    const data = await res.json();
+                    if (data.success) {
+                        updateVoiceUI(data.state);
+                    }
+                } catch (err) {
+                    console.error('[Voice] Erreur toggle:', err);
+                }
+            });
+        }
+
+        // Récupérer le statut initial du système vocal
+        fetch('/api/voice/status')
+            .then(res => res.json())
+            .then(data => {
+                if (data.state) updateVoiceUI(data.state);
+            })
+            .catch(() => {});
+
+        // --- Toast Notifications (Vercel style) ---
+        function showToast(message, type = 'info', duration = 3000) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            const iconName = type === 'success' ? 'success' : type === 'error' ? 'error' : 'info';
+            toast.innerHTML = `<span class="toast-icon">${iconMarkup(iconName, { size: 'sm' })}</span><span>${message}</span>`;
+            container.appendChild(toast);
+            refreshIcons();
+            setTimeout(() => {
+                toast.classList.add('removing');
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
+
+        // --- Command Palette (Linear / Raycast style) ---
+        const cmdPaletteOverlay = document.getElementById('cmd-palette-overlay');
+        const cmdPaletteInput = document.querySelector('.cmd-palette-input');
+        const cmdPaletteList = document.querySelector('.cmd-palette-list');
+        let cmdPaletteIndex = -1;
+        const commands = [
+            { id: 'new-chat', label: 'Nouvelle conversation', icon: 'new-chat', shortcut: 'Cmd+N', action: () => newConversation() },
+            { id: 'export', label: 'Exporter la conversation', icon: 'export', shortcut: 'Cmd+E', action: () => exportBtn.click() },
+            { id: 'theme', label: 'Basculer le thème', icon: 'theme-light', shortcut: 'Cmd+D', action: () => themeToggle.click() },
+            { id: 'history', label: 'Voir l\'historique', icon: 'history', shortcut: 'Cmd+H', action: () => historyBtn.click() },
+            { id: 'clear', label: 'Effacer la conversation', icon: 'delete', shortcut: '', action: () => { if(confirm('Effacer cette conversation ?')) { messages.innerHTML = ''; showToast('Conversation effacée', 'success'); } } },
+            { id: 'focus-input', label: 'Focus sur la saisie', icon: 'command', shortcut: 'Cmd+/', action: () => cmdInput.focus() },
+            { id: 'voice-toggle', label: 'Activer/Désactiver le micro', icon: 'voice', shortcut: 'Cmd+M', action: () => voiceToggleBtn && voiceToggleBtn.click() },
+            { id: 'upload', label: 'Joindre un fichier', icon: 'attach', shortcut: '', action: () => fileUploadBtn.click() },
+        ];
+
+        function openCmdPalette() {
+            cmdPaletteOverlay.classList.add('open');
+            cmdPaletteInput.value = '';
+            cmdPaletteIndex = -1;
+            renderCmdPalette('');
+            setTimeout(() => cmdPaletteInput.focus(), 50);
+        }
+        function closeCmdPalette() {
+            cmdPaletteOverlay.classList.remove('open');
+            cmdPaletteIndex = -1;
+        }
+        function renderCmdPalette(filter) {
+            const filtered = commands.filter(c => c.label.toLowerCase().includes(filter.toLowerCase()));
+            cmdPaletteList.innerHTML = filtered.map((c, i) => `
+                <div class="cmd-palette-item ${i === cmdPaletteIndex ? 'active' : ''}" data-id="${c.id}">
+                    <div class="icon">${iconMarkup(c.icon, { size: 'md' })}</div>
+                    <span>${c.label}</span>
+                    ${c.shortcut ? `<span class="shortcut">${c.shortcut}</span>` : ''}
+                </div>
+            `).join('');
+            refreshIcons();
+            cmdPaletteList.querySelectorAll('.cmd-palette-item').forEach(el => {
+                el.addEventListener('click', () => {
+                    const cmd = commands.find(c => c.id === el.dataset.id);
+                    if (cmd) { closeCmdPalette(); cmd.action(); }
+                });
+            });
+        }
+        cmdPaletteInput.addEventListener('input', (e) => { cmdPaletteIndex = -1; renderCmdPalette(e.target.value); });
+        cmdPaletteInput.addEventListener('keydown', (e) => {
+            const items = cmdPaletteList.querySelectorAll('.cmd-palette-item');
+            if (e.key === 'ArrowDown') { e.preventDefault(); cmdPaletteIndex = Math.min(cmdPaletteIndex + 1, items.length - 1); items.forEach((it,i) => it.classList.toggle('active', i === cmdPaletteIndex)); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); cmdPaletteIndex = Math.max(cmdPaletteIndex - 1, 0); items.forEach((it,i) => it.classList.toggle('active', i === cmdPaletteIndex)); }
+            else if (e.key === 'Enter') { e.preventDefault(); if (items[cmdPaletteIndex]) items[cmdPaletteIndex].click(); }
+            else if (e.key === 'Escape') { closeCmdPalette(); }
+        });
+        cmdPaletteOverlay.addEventListener('click', (e) => { if (e.target === cmdPaletteOverlay) closeCmdPalette(); });
+
+        // --- Keyboard Shortcuts (Superhuman style) ---
+        document.addEventListener('keydown', (e) => {
+            const mod = e.metaKey || e.ctrlKey;
+            if (mod && e.key === 'k') { e.preventDefault(); openCmdPalette(); }
+            else if (mod && e.key === 'n') { e.preventDefault(); newConversation(); showToast('Nouvelle conversation', 'success'); }
+            else if (mod && e.key === 'e') { e.preventDefault(); exportBtn.click(); }
+            else if (mod && e.key === 'd') { e.preventDefault(); themeToggle.click(); }
+            else if (mod && e.key === 'h') { e.preventDefault(); historyBtn.click(); }
+            else if (mod && e.key === '/') { e.preventDefault(); cmdInput.focus(); }
+            else if (mod && e.key === 'm') { e.preventDefault(); if (voiceToggleBtn) voiceToggleBtn.click(); }
+            else if (e.key === 'Escape') { closeCmdPalette(); historyModal.style.display = 'none'; }
+        });
+
+        // --- Quick Actions ---
+        document.querySelectorAll('.quick-action-chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+                const action = chip.dataset.action;
+                if (action === 'new-chat') { newConversation(); showToast('Nouvelle conversation', 'success'); }
+                else if (action === 'export') { exportBtn.click(); }
+                else if (action === 'theme') { themeToggle.click(); }
+                else if (action === 'palette') { openCmdPalette(); }
+            });
+        });
+
+        // --- Improved Message Rendering ---
+        function appendMessage(sender, text, save = true) {
+            const emptyState = document.getElementById('empty-state');
+            if (emptyState) emptyState.classList.remove('visible');
+            const div = document.createElement('div');
+            div.className = `msg ${sender}`;
+            div.innerHTML = buildMessageMarkup(sender, text);
+            messages.appendChild(div);
+            messages.scrollTop = messages.scrollHeight;
+            refreshIcons();
+            return div;
+        }
+
+        // --- Improved Send with Loading State ---
+        async function sendMessage() {
+            const text = cmdInput.value.trim();
+            if (!text) return;
+            cmdInput.value = '';
+            const handled = await handleCommand(text);
+            if (handled) return;
+
+            appendMessage('user', text);
+            const loadingEl = appendMessage('onyx', '<div class="typing-indicator"><span></span><span></span><span></span></div> Réflexion en cours...');
+
+            try {
+                const res = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Session-ID': sessionId },
+                    body: JSON.stringify({
+                        prompt: text,
+                        language: 'fr',
+                        doc_mode: docMode,
+                        conv_id: currentConvId,
+                        settings: { serperKey: localStorage.getItem('serperKey') || '' }
+                    })
+                });
+                const data = await res.json();
+                if (loadingEl) {
+                    loadingEl.innerHTML = buildMessageMarkup('onyx', data.response);
+                    if (data.model_used) {
+                        loadingEl.innerHTML += `<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">` +
+                            (data.web_used ? `<span class="kbd-hint">Web</span>` : '') +
+                            (data.file_used ? `<span class="kbd-hint">Fichier</span>` : '') +
+                            `<span class="kbd-hint">${data.model_used}</span></div>`;
+                    }
+                    if (data.conv_id) await loadConversations();
+                    refreshIcons();
+                }
+                showToast('Réponse reçue', 'success', 2000);
+            } catch (err) {
+                if (loadingEl) loadingEl.innerHTML = buildMessageMarkup('onyx', 'Erreur serveur.');
+                showToast('Erreur de connexion', 'error');
+                console.error(err);
+            }
+        }
+    </script>
+</body>
+</html>

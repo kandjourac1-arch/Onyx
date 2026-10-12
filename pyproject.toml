@@ -1,0 +1,17 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+exclude = ["*.bak*", ".venv", ".venv-*", "__pycache__"]
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv", ".venv-1", ".venv-2"]
+
+[tool.mypy]
+python_version = "3.11"
+check_untyped_defs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+exclude = "(^|/)(\.venv|\.venv-.*|onyx_next/ui/node_modules|.*\.bak.*)(/|$)"

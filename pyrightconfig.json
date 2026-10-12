@@ -1,0 +1,10 @@
+{
+  "include": ["app.py", "onyx_app", "brain", "services", "tools", "tests"],
+  "exclude": ["**/__pycache__", ".venv", ".venv-*", "onyx_next/ui/node_modules", "*.bak*"],
+  "venvPath": ".",
+  "venv": ".venv",
+  "typeCheckingMode": "basic",
+  "pythonVersion": "3.11",
+  "reportMissingImports": "warning",
+  "reportMissingTypeStubs": "none"
+}

@@ -1,0 +1,95 @@
+﻿# ==========================================
+# Byte-compiled / cache files
+# ==========================================
+__pycache__/
+*.py[cod]
+*.class
+*.pyd
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# ==========================================
+# Logs & debug outputs
+# ==========================================
+*.log
+_stderr.log
+_stdout.log
+
+# ==========================================
+# Virtual environments
+# ==========================================
+.venv/
+.venv*/
+venv/
+env/
+ENV/
+
+# ==========================================
+# Secrets and environment configurations
+# ==========================================
+*.env
+*.env.*
+!*.env.example
+mail.env
+model.env
+
+# ==========================================
+# Large archives & heavy model binaries
+# (> 100 MB blocked by GitHub)
+# ==========================================
+*.tar.bz2
+*.tar.gz
+*.zip
+*.7z
+*.bin
+*.onnx
+sherpa-onnx-streaming-zipformer-fr-2023-04-14.tar.bz2
+Models/
+
+# ==========================================
+# Runtime databases, local memory & history
+# ==========================================
+*.db
+*.sqlite
+*.sqlite3
+onyx.db
+history.db
+history/
+memory/
+users/
+ltm.json
+memory.json
+.uploads/
+
+# ==========================================
+# Temporary, patch & backup files
+# ==========================================
+*.bak
+*.bak*
+*.tmp
+_patch*.py
+_test_replace.tmp
+fix_app.py
+
+# ==========================================
+# Rust build artifacts
+# ==========================================
+target/
+
+# ==========================================
+# Node / Frontend
+# ==========================================
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# ==========================================
+# IDE & OS files
+# ==========================================
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
